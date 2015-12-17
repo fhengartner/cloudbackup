@@ -11,7 +11,7 @@ set -o pipefail
 DEBUG=1
 
 # dont edit these
-DEPENDENCIES="gpg mysqldump"
+DEPENDENCIES="gpg mysqldump basename"
 VERSION="0.1"
 NOW=$(date +"%Y-%m-%d")
 
@@ -23,7 +23,7 @@ CONFIG_FILE_DBS=dbs.conf
 CONFIG_FILE_DROPBOX_UPLOADER=~/.dropbox_uploader
 
 ###################
-# FUNCTIONS
+# UTILITIES
 ###################
 
 ensure_folder_exists() {
@@ -41,6 +41,36 @@ ensure_file_exists() {
 	
 	return 0
 }
+
+
+check_dependencies() {
+	NOT_FOUND=""
+	for i in $DEPENDENCIES; do
+	    type -p $i > /dev/null || NOT_FOUND="$NOT_FOUND $i"
+	done
+	
+	[[ -z $NOT_FOUND ]] && return 0
+	
+	echo -e "Error: Required program(s) could not be found: $NOT_FOUND"
+	exit 1
+}
+
+verify() {
+	if [[ $DEBUG != 0 ]]; then
+	    echo "VERSION: $VERSION"
+	    uname -a 2> /dev/null && true
+	fi
+
+	check_dependencies
+
+	ensure_folder_exists $BACKUP_FOLDER || exit 1
+
+	ensure_file_exists $CONFIG_FILE_DROPBOX_UPLOADER || exit 1
+}
+
+########################
+# BACKUP LOGIC
+########################
 
 compress() {
 	gzip
@@ -103,9 +133,7 @@ backup_folders() {
 
 	while read -r DIR NAME; do
 		[[ -z $DIR ]]  && continue # skip empty lines
-		# TODO: remove name?!
-		# TODO: do not use hardcoded /usr/bin/basename
-		[[ -z $NAME ]]  && NAME=$(/usr/bin/basename $DIR)
+		[[ -z $NAME ]]  && NAME=$(basename $DIR)
 		[[ -z $NAME ]]  && continue # TODO log error
 		backup_folder "$DIR" "$NAME"
 		
@@ -113,7 +141,6 @@ backup_folders() {
 }
 
 # fake mysqldump
-
 mysqldump() {
 	echo "I AM THE DUMP"
 }
@@ -169,38 +196,14 @@ backup_databases() {
 	done < ${CONFIG_FILE_DBS}
 }
 
-check_dependencies() {
-	NOT_FOUND=""
-	for i in $DEPENDENCIES; do
-	    type -p $i > /dev/null || NOT_FOUND="$NOT_FOUND $i"
-	done
-	
-	[[ -z $NOT_FOUND ]] && return 0
-	
-	echo -e "Error: Required program(s) could not be found: $NOT_FOUND"
-	exit 1
-}
-
 ########################
 # MAIN
 ########################
 
-if [[ $DEBUG != 0 ]]; then
-    echo "VERSION: $VERSION"
-    uname -a 2> /dev/null && true
-fi
+verify
 
-check_dependencies
-
-ensure_folder_exists $BACKUP_FOLDER || exit 1
-
-ensure_file_exists $CONFIG_FILE_DROPBOX_UPLOADER || exit 1
-
-
-# TODO: verify configuration file for dropbox-uploader exists
-
-# TODO: use options to specify backup folder?
-# TODO: dito for dropbox-uploader config file
+# TODO: backup-folder as parameter
+# TODO: dropbox-uploader-config-file as parameter
 
 backup_databases
 backup_folders
