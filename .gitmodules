@@ -1,0 +1,3 @@
+[submodule "vendor/dropboxuploader"]
+	path = vendor/dropboxuploader
+	url = https://github.com/andreafabrizi/Dropbox-Uploader
