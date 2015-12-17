@@ -220,7 +220,7 @@ backup_databases() {
 	i=0
 	while read -r DBNAME USER PW HOST; do
 		[[ -z $DBNAME ]]  && continue # skip empty lines
-		[[ -z $USER ]]  && echo -e "WARN: user is empty! ignoring line ${i} of $CONFIG_FILE_DBS" && continue # TODO log error
+		[[ -z $USER ]]  && echo -e "WARN: user is empty! ignoring line ${i} of $CONFIG_FILE_DBS" && continue
 		[[ -z $HOST ]]  && HOST=localhost
 
 		backup_database "$DBNAME" "$USER" "$PW" "$HOST"
