@@ -64,6 +64,8 @@ verify() {
 
 	check_dependencies
 	
+	[[ ! -f "$ENCRYPT_PASSPHRASE_FILE" ]] && error "Unable to find encryption file ($ENCRYPT_PASSPHRASE_FILE)"
+	
 	ensure_folder_exists "BACKUP_FOLDER" "$BACKUP_FOLDER" || exit 1
 
 	ensure_folder_exists "LOG_FOLDER" "$LOG_FOLDER" || exit 1
@@ -230,7 +232,7 @@ backup_databases() {
 # MAIN
 ########################
 
-# config-file
+# first argument is path to configfile
 CONFIGFILE=${1:-""}
 if ! [ -e "$CONFIGFILE" ]; then
     usage
@@ -246,23 +248,16 @@ source $CONFIGFILE
 SKIP_UPLOAD=${SKIP_UPLOAD:-0}
 BACKUP_FOLDER=${BACKUP_FOLDER:-/tmp/backup/}
 LOG_FOLDER=${LOG_FOLDER:-${BACKUP_FOLDER}/log/}
-ENCRYPT_PASSPHRASE_FILE=${ENCRYPT_PASSPHRASE_FILE:-} # TODO: fail if empty
+ENCRYPT_PASSPHRASE_FILE=${ENCRYPT_PASSPHRASE_FILE:-}
 CONFIG_FILE_FOLDERS=${CONFIG_FILE_FOLDERS:-folders.conf}
 CONFIG_FILE_DBS=${CONFIG_FILE_DBS:-dbs.conf}
 CONFIG_FILE_DROPBOX_UPLOADER=${CONFIG_FILE_DROPBOX_UPLOADER:-~/.dropbox_uploader)}
 NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
 
-## echo $BACKUP_FOLDER && echo $ENCRYPT_PASSPHRASE_FILE && echo $CONFIG_FILE_FOLDERS && echo $CONFIG_FILE_DBS && echo $CONFIG_FILE_DROPBOX_UPLOADER && echo $NOTIFICATION_EMAIL_ADDRESS && exit 1
-
 shift
 parse_arguments $@
 
 verify
-
-# TODO: backup-folder as parameter
-# TODO: dropbox-uploader-config-file as parameter
-# - secret's file
-# - folders-file / databases-file
 
 backup_databases
 backup_folders
