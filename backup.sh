@@ -1,11 +1,13 @@
 #!/bin/bash
 
-# quit script if trying to use uninitialized variables
+# fail on undefined variables
 set -o nounset
 # exit the script if any statement returns a non-true return value
 set -o errexit
 # fail on pipe error
 set -o pipefail
+# disable globbing
+set -o noglob
 
 # default values
 DEBUG=1
@@ -15,29 +17,29 @@ DEPENDENCIES="gpg mysqldump basename"
 VERSION="0.1"
 NOW=$(date +"%Y-%m-%d")
 
-# config values
-BACKUP_FOLDER=/tmp/backup/
-ENCRYPT_PASSPHRASE_FILE=./secret
-CONFIG_FILE_FOLDERS=folders.conf
-CONFIG_FILE_DBS=dbs.conf
-CONFIG_FILE_DROPBOX_UPLOADER=~/.dropbox_uploader
-
 ###################
 # UTILITIES
 ###################
 
+error() {
+	echo -e "ERROR: $*"
+	exit 1
+}
+
 ensure_folder_exists() {
-	DIR=$@
+	NAME=$1
+	DIR=$2
 		
-	[[ ! -d "$DIR" ]] && echo "ERROR: Directory does not exist: $DIR" && return 1
+	[[ ! -d "$DIR" ]] && echo "ERROR: Directory ($NAME) does not exist: $DIR" && return 1
 	
 	return 0
 }
 
 ensure_file_exists() {
-	FILE=$@
+	NAME=$1
+	FILE=$2
 	
-	[[ ! -f "$FILE" ]] && echo "ERROR: File does not exist: $FILE" && return 1
+	[[ ! -f "$FILE" ]] && echo "ERROR: File ($NAME) does not exist: $FILE" && exit 1
 	
 	return 0
 }
@@ -46,13 +48,12 @@ ensure_file_exists() {
 check_dependencies() {
 	NOT_FOUND=""
 	for i in $DEPENDENCIES; do
-	    type -p $i > /dev/null || NOT_FOUND="$NOT_FOUND $i"
+	    type -p "$i" > /dev/null || NOT_FOUND="$NOT_FOUND $i"
 	done
 	
 	[[ -z $NOT_FOUND ]] && return 0
 	
-	echo -e "Error: Required program(s) could not be found: $NOT_FOUND"
-	exit 1
+	error "Required program(s) could not be found: $NOT_FOUND"
 }
 
 verify() {
@@ -62,10 +63,32 @@ verify() {
 	fi
 
 	check_dependencies
+	
+	ensure_folder_exists "BACKUP_FOLDER" "$BACKUP_FOLDER" || exit 1
 
-	ensure_folder_exists $BACKUP_FOLDER || exit 1
+	ensure_folder_exists "LOG_FOLDER" "$LOG_FOLDER" || exit 1
 
-	ensure_file_exists $CONFIG_FILE_DROPBOX_UPLOADER || exit 1
+	ensure_file_exists "CONFIG_FILE_DROPBOX_UPLOADER" "$CONFIG_FILE_DROPBOX_UPLOADER"
+
+	ensure_file_exists "CONFIG_FILE_FOLDERS" "$CONFIG_FILE_FOLDERS"
+
+	ensure_file_exists "CONFIG_FILE_DBS" "$CONFIG_FILE_DBS"
+}
+
+usage() { echo -e "Usage: $0 <configfile> [-q|-v|-n] " 1>&2; exit 1; }
+
+parse_arguments() {
+	while getopts "qvn" o; do
+	    case "${o}" in
+	        q) DEBUG=0;;
+	        v) DEBUG=1;;
+			n) SKIP_UPLOAD=1;;
+	        *)
+	            usage
+	            ;;
+	    esac
+	done
+	shift $((OPTIND-1))
 }
 
 ########################
@@ -81,12 +104,13 @@ encrypt() {
 		--symmetric --passphrase-file $ENCRYPT_PASSPHRASE_FILE
 }
 
+# upload file to dropbox
 upload() {
-	LOCAL_PATH="$@"
+	LOCAL_PATH="$*"
 	REMOTE_FILE=$(basename $LOCAL_PATH)
 	
-	[[ -z $REMOTE_FILE ]] && echo "error" && return 1
-	[[ ! -f "$LOCAL_PATH" ]] && echo "file does not exist: $LOCAL_PATH" && return 1
+	[[ ! -f "$LOCAL_PATH" ]] && echo -e "ERROR: LOCAL_PATH does not exist: $LOCAL_PATH" && return 1
+	[[ -z $REMOTE_FILE ]] && echo -e "ERROR: REMOTE_FILE is empty LOCAL_PATH=$LOCAL_PATH" && return 1
 	
 	REMOTE_PATH="/backup/$NOW/$REMOTE_FILE"
 		
@@ -94,7 +118,7 @@ upload() {
 	
 	[[ $DEBUG != 0 ]] && echo "] upload to dropbox: $LOCAL_PATH $REMOTE_PATH"
 	
-	return 0
+	[[ $SKIP_UPLOAD == 1 ]] && return 0
 
 	$DROPBOX_UPLOADER upload $LOCAL_PATH $REMOTE_PATH
 }
@@ -114,23 +138,23 @@ build_file_path() {
 }
 
 backup_folder() {
-	DIR=$1
+	SOURCE_FOLDER=$1
 	NAME=$2
 	
-	ensure_folder_exists $DIR || return 1
+	ensure_folder_exists "SOURCE_FOLDER" $SOURCE_FOLDER || return 1
 
-	[[ $DEBUG != 0 ]] && echo "] folder: $DIR"
+	[[ $DEBUG != 0 ]] && echo "] folder: $SOURCE_FOLDER"
 
 	OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
 	
-	tar c $DIR | compress | encrypt > $OUTPUT_FILE_PATH
+	# TODO: exclude path's from tar
+	tar c $SOURCE_FOLDER | compress | encrypt > $OUTPUT_FILE_PATH
 	
 	upload $OUTPUT_FILE_PATH	
 }
 
+# backup folders listed in config-file
 backup_folders() {
-	ensure_file_exists $CONFIG_FILE_FOLDERS || exit 1
-
 	while read -r DIR NAME; do
 		[[ -z $DIR ]]  && continue # skip empty lines
 		[[ -z $NAME ]]  && NAME=$(basename $DIR)
@@ -145,32 +169,37 @@ mysqldump() {
 	echo "I AM THE DUMP"
 }
 
+# send email for mysqldump error
 send_notification() {
 	DBNAME=$1
 	LOG=$2
 	
-	echo $DBNAME
-	echo $LOG
+	if [[ -z $NOTIFICATION_EMAIL_ADDRESS ]]; then
+		[[ $DEBUG != 0 ]] && echo "WARN: NOTIFICATION_EMAIL_ADDRESS is not set. no email sent."
+		return 0
+	fi
+	
+	[[ ! -f $LOG ]] && echo "WARN: logfile $LOG does not exist. no email sent" && return 0
+	
+	cat $LOG | mailx -s "Backup-Error: Database $DBNAME" $NOTIFICATION_EMAIL_ADDRESS
 }
 
 has_mysql_error() {
 	# -s => true if file is not empty
-	[[ -f "$@" ]] && [[ ! -s "$@" ]]
-	
+	[[ -f "$*" ]] && [[ ! -s "$*" ]]	
 }
 
+# backup mysql database
 backup_database() {
 	DBNAME=$1
 	USER=$2
 	PW=$3
 	HOST=$4
-	LOG=${BACKUP_FOLDER}/log/db_${DBNAME}.log
+	LOG=${LOG_FOLDER}/db_${DBNAME}.log
 	
 	[[ $DEBUG != 0 ]] && echo "] database: HOST=$HOST DB=$DBNAME USER=$USER"
 	
-	ensure_folder_exists $(dirname $LOG) || return 1
-	
-	# remove old LOGFILE
+	# has_mysql_error is only reliable if the old logfile is removed 
 	rm -f $LOG
 	
 	OUTPUT_FILE_PATH=$(build_file_path ${DBNAME} "sql.gz.gpg")
@@ -184,15 +213,16 @@ backup_database() {
 	return 0
 }
 
+# backup databases listed in config-file
 backup_databases() {
-	ensure_file_exists $CONFIG_FILE_DBS || exit 1
-
+	i=0
 	while read -r DBNAME USER PW HOST; do
 		[[ -z $DBNAME ]]  && continue # skip empty lines
-		[[ -z $USER ]]  && continue # TODO log error
+		[[ -z $USER ]]  && echo -e "WARN: user is empty! ignoring line ${i} of $CONFIG_FILE_DBS" && continue # TODO log error
 		[[ -z $HOST ]]  && HOST=localhost
 
 		backup_database "$DBNAME" "$USER" "$PW" "$HOST"
+		let ++i
 	done < ${CONFIG_FILE_DBS}
 }
 
@@ -200,10 +230,41 @@ backup_databases() {
 # MAIN
 ########################
 
+# config-file
+CONFIGFILE=${1:-""}
+if ! [ -e "$CONFIGFILE" ]; then
+    usage
+fi
+
+if ! [ -f "$CONFIGFILE" ]; then
+    error "Path to config-file is invalid."
+fi
+
+source $CONFIGFILE
+
+# config values
+SKIP_UPLOAD=${SKIP_UPLOAD:-0}
+BACKUP_FOLDER=${BACKUP_FOLDER:-/tmp/backup/}
+LOG_FOLDER=${LOG_FOLDER:-${BACKUP_FOLDER}/log/}
+ENCRYPT_PASSPHRASE_FILE=${ENCRYPT_PASSPHRASE_FILE:-} # TODO: fail if empty
+CONFIG_FILE_FOLDERS=${CONFIG_FILE_FOLDERS:-folders.conf}
+CONFIG_FILE_DBS=${CONFIG_FILE_DBS:-dbs.conf}
+CONFIG_FILE_DROPBOX_UPLOADER=${CONFIG_FILE_DROPBOX_UPLOADER:-~/.dropbox_uploader)}
+NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
+
+## echo $BACKUP_FOLDER && echo $ENCRYPT_PASSPHRASE_FILE && echo $CONFIG_FILE_FOLDERS && echo $CONFIG_FILE_DBS && echo $CONFIG_FILE_DROPBOX_UPLOADER && echo $NOTIFICATION_EMAIL_ADDRESS && exit 1
+
+shift
+parse_arguments $@
+
 verify
 
 # TODO: backup-folder as parameter
 # TODO: dropbox-uploader-config-file as parameter
+# - secret's file
+# - folders-file / databases-file
 
 backup_databases
 backup_folders
+
+# TODO: cleanup old files
