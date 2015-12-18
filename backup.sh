@@ -20,7 +20,7 @@ DEBUG=0
 
 # dont edit these
 DEPENDENCIES="gpg mysqldump basename"
-VERSION="0.1"
+VERSION="0.2"
 NOW=$(date +"%Y-%m-%d")
 
 ###################
