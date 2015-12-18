@@ -1,3 +1,6 @@
 [submodule "vendor/dropboxuploader"]
 	path = vendor/dropboxuploader
 	url = https://github.com/andreafabrizi/Dropbox-Uploader
+[submodule "vendor/shunit2"]
+	path = vendor/shunit2
+	url = https://github.com/kward/shunit2.git
