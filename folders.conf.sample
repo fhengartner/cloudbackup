@@ -1,0 +1,3 @@
+#PATH NAME(optional) EXCLUDE_PATHS(optional,separate multiple paths with :)
+path/to/mybackupfolder mybackupfolder protected:runtime:session
+my/other/backupfolder
