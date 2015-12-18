@@ -16,7 +16,7 @@ set -o pipefail
 set -o noglob
 
 # default values
-DEBUG=1
+DEBUG=0
 
 # dont edit these
 DEPENDENCIES="gpg mysqldump basename"
@@ -83,14 +83,28 @@ verify() {
 	ensure_file_exists "CONFIG_FILE_DBS" "$CONFIG_FILE_DBS"
 }
 
-usage() { echo -e "Usage: $0 <configfile> [-q|-v|-n] " 1>&2; exit 1; }
+usage() { 
+	echo -e "Backup to Dropbox v$VERSION"
+	echo -e "Usage: $0 <configfile> [-q|-v|-n] "
+
+	echo -e "\nOptional parameters:"
+	echo -e "\t-q\tQuiet mode"
+	echo -e "\t-v\tVerbose mode"
+	echo -e "\t-n\tNo upload"
+	echo -e "\t-f <FILE> path to FOLDERS configuration-file"
+	echo -e "\t-d <FILE> path to DATABASES configuration-file"
+	
+	exit 1;
+}
 
 parse_arguments() {
-	while getopts "qvn" o; do
+	while getopts ":qvnd:f:" o; do
 	    case "${o}" in
 	        q) DEBUG=0;;
 	        v) DEBUG=1;;
 			n) SKIP_UPLOAD=1;;
+			d) CONFIG_FILE_DBS=$OPTARG;;
+			f) CONFIG_FILE_FOLDERS=$OPTARG;;
 	        *)
 	            usage
 	            ;;
@@ -148,6 +162,7 @@ build_file_path() {
 backup_folder() {
 	local SOURCE_FOLDER=$1
 	local NAME=$2
+	local EXCLUDEPATHS=$3
 	
 	ensure_folder_exists "SOURCE_FOLDER" $SOURCE_FOLDER || return 1
 
@@ -155,20 +170,31 @@ backup_folder() {
 
 	local OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
 	
+	EXCLUDE_STRING=""
+	BAK_IFS=$IFS
+	IFS=$':'
+	for EXCLUDEPATH in $EXCLUDEPATHS; do
+		EXCLUDE_STRING="$EXCLUDE_STRING --exclude=${EXCLUDEPATH}"
+	done
+	IFS=$BAK_IFS
+	
 	# TODO: exclude path's from tar
-	tar c "$SOURCE_FOLDER" | compress | encrypt > "$OUTPUT_FILE_PATH"
+	tar c $EXCLUDE_STRING "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
+	#tar c "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
+	
 	
 	upload "$OUTPUT_FILE_PATH"	
 }
 
 # backup folders listed in config-file
 backup_folders() {
-	while read -r DIR NAME; do
+	while read -r DIR NAME EXCLUDEPATH || [[ -n "$DIR" ]]; do
+		[[ $DIR == \#* ]] && continue # ignore comment line
 		[[ -z $DIR ]]  && continue # skip empty lines
 		[[ -z $NAME ]]  && NAME=$(basename $DIR)
 		[[ -z $NAME ]]  && continue # TODO log error
 	
-		backup_folder "$DIR" "$NAME"
+		backup_folder "$DIR" "$NAME" "$EXCLUDEPATH"
 		
 	done < ${CONFIG_FILE_FOLDERS}
 }
@@ -225,7 +251,8 @@ backup_database() {
 # backup databases listed in config-file
 backup_databases() {
 	i=0
-	while read -r DBNAME USER PW HOST; do
+	while read -r DBNAME USER PW HOST || [[ -n "$DBNAME" ]]; do
+		[[ $DBNAME == \#* ]] && continue # ignore comment line
 		[[ -z $DBNAME ]]  && continue # skip empty lines
 		[[ -z $USER ]]  && echo -e "WARN: user is empty! ignoring line ${i} of $CONFIG_FILE_DBS" && continue
 		[[ -z $HOST ]]  && HOST=localhost
