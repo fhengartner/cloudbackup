@@ -199,11 +199,6 @@ backup_folders() {
 	done < ${CONFIG_FILE_FOLDERS}
 }
 
-# fake mysqldump
-mysqldump() {
-	echo "I AM THE DUMP"
-}
-
 # send email for mysqldump error
 send_notification() {
 	local DBNAME=$1
