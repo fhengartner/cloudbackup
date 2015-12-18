@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# Dropbox Uploader
+#
+# Copyright (C) 2015 Florian Hengartner <fhengartner@gmail.com>
+#
+########################################################################
 
 # fail on undefined variables
 set -o nounset
@@ -27,8 +33,8 @@ error() {
 }
 
 ensure_folder_exists() {
-	NAME=$1
-	DIR=$2
+	local NAME=$1
+	local DIR=$2
 		
 	[[ ! -d "$DIR" ]] && echo "ERROR: Directory ($NAME) does not exist: $DIR" && return 1
 	
@@ -36,8 +42,8 @@ ensure_folder_exists() {
 }
 
 ensure_file_exists() {
-	NAME=$1
-	FILE=$2
+	local NAME=$1
+	local FILE=$2
 	
 	[[ ! -f "$FILE" ]] && echo "ERROR: File ($NAME) does not exist: $FILE" && exit 1
 	
@@ -46,7 +52,7 @@ ensure_file_exists() {
 
 
 check_dependencies() {
-	NOT_FOUND=""
+	local NOT_FOUND=""
 	for i in $DEPENDENCIES; do
 	    type -p "$i" > /dev/null || NOT_FOUND="$NOT_FOUND $i"
 	done
@@ -108,15 +114,15 @@ encrypt() {
 
 # upload file to dropbox
 upload() {
-	LOCAL_PATH="$*"
-	REMOTE_FILE=$(basename $LOCAL_PATH)
+	local LOCAL_PATH="$*"
+	local REMOTE_FILE=$(basename $LOCAL_PATH)
 	
 	[[ ! -f "$LOCAL_PATH" ]] && echo -e "ERROR: LOCAL_PATH does not exist: $LOCAL_PATH" && return 1
 	[[ -z $REMOTE_FILE ]] && echo -e "ERROR: REMOTE_FILE is empty LOCAL_PATH=$LOCAL_PATH" && return 1
 	
-	REMOTE_PATH="/backup/$NOW/$REMOTE_FILE"
+	local REMOTE_PATH="/backup/$NOW/$REMOTE_FILE"
 		
-	DROPBOX_UPLOADER="./vendor/dropboxuploader/dropbox_uploader.sh -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
+	local DROPBOX_UPLOADER="./vendor/dropboxuploader/dropbox_uploader.sh -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
 	
 	[[ $DEBUG != 0 ]] && echo "] upload to dropbox: $LOCAL_PATH $REMOTE_PATH"
 	
@@ -126,13 +132,13 @@ upload() {
 }
 
 build_file_path() {
-	NAME=$1
-	EXTENSION=$2
+	local NAME=$1
+	local EXTENSION=$2
 	
 	[[ -z "$NAME" ]] && echo "ERROR: build_file_path(): no argument given." && return 1
 	[[ -z "$EXTENSION" ]] && echo "ERROR: build_file_path(): parameter EXTENSION is empty." && return 1
 	
-	OUTPUT_FILE=${NAME}_${NOW}.$EXTENSION
+	local OUTPUT_FILE=${NAME}_${NOW}.$EXTENSION
 	
 	echo ${BACKUP_FOLDER}$OUTPUT_FILE
 	
@@ -140,19 +146,19 @@ build_file_path() {
 }
 
 backup_folder() {
-	SOURCE_FOLDER=$1
-	NAME=$2
+	local SOURCE_FOLDER=$1
+	local NAME=$2
 	
 	ensure_folder_exists "SOURCE_FOLDER" $SOURCE_FOLDER || return 1
 
 	[[ $DEBUG != 0 ]] && echo "] folder: $SOURCE_FOLDER"
 
-	OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
+	local OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
 	
 	# TODO: exclude path's from tar
-	tar c $SOURCE_FOLDER | compress | encrypt > $OUTPUT_FILE_PATH
+	tar c "$SOURCE_FOLDER" | compress | encrypt > "$OUTPUT_FILE_PATH"
 	
-	upload $OUTPUT_FILE_PATH	
+	upload "$OUTPUT_FILE_PATH"	
 }
 
 # backup folders listed in config-file
@@ -161,6 +167,7 @@ backup_folders() {
 		[[ -z $DIR ]]  && continue # skip empty lines
 		[[ -z $NAME ]]  && NAME=$(basename $DIR)
 		[[ -z $NAME ]]  && continue # TODO log error
+	
 		backup_folder "$DIR" "$NAME"
 		
 	done < ${CONFIG_FILE_FOLDERS}
@@ -173,17 +180,17 @@ mysqldump() {
 
 # send email for mysqldump error
 send_notification() {
-	DBNAME=$1
-	LOG=$2
+	local DBNAME=$1
+	local LOG=$2
 	
 	if [[ -z $NOTIFICATION_EMAIL_ADDRESS ]]; then
 		[[ $DEBUG != 0 ]] && echo "WARN: NOTIFICATION_EMAIL_ADDRESS is not set. no email sent."
 		return 0
 	fi
 	
-	[[ ! -f $LOG ]] && echo "WARN: logfile $LOG does not exist. no email sent" && return 0
+	[[ ! -f "$LOG" ]] && echo "WARN: logfile $LOG does not exist. no email sent" && return 0
 	
-	cat $LOG | mailx -s "Backup-Error: Database $DBNAME" $NOTIFICATION_EMAIL_ADDRESS
+	cat "$LOG" | mailx -s "Backup-Error: Database $DBNAME" "$NOTIFICATION_EMAIL_ADDRESS"
 }
 
 has_mysql_error() {
@@ -193,24 +200,24 @@ has_mysql_error() {
 
 # backup mysql database
 backup_database() {
-	DBNAME=$1
-	USER=$2
-	PW=$3
-	HOST=$4
-	LOG=${LOG_FOLDER}/db_${DBNAME}.log
+	local DBNAME=$1
+	local USER=$2
+	local PW=$3
+	local HOST=$4
+	local LOG=${LOG_FOLDER}/db_${DBNAME}.log
 	
 	[[ $DEBUG != 0 ]] && echo "] database: HOST=$HOST DB=$DBNAME USER=$USER"
 	
 	# has_mysql_error is only reliable if the old logfile is removed 
 	rm -f $LOG
 	
-	OUTPUT_FILE_PATH=$(build_file_path ${DBNAME} "sql.gz.gpg")
+	local OUTPUT_FILE_PATH=$(build_file_path ${DBNAME} "sql.gz.gpg")
 	
 	mysqldump -u $USER --password=$PW -h $HOST --log-error=$LOG $DBNAME | compress | encrypt > $OUTPUT_FILE_PATH
 	
 	has_mysql_error $LOG && send_notification $DBNAME $LOG
 
-	upload $OUTPUT_FILE_PATH
+	upload "$OUTPUT_FILE_PATH"
 	
 	return 0
 }
