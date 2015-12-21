@@ -137,9 +137,7 @@ upload() {
 	
 	local REMOTE_PATH="/backup/$NOW/$REMOTE_FILE"
 		
-	local DROPBOX_UPLOADER="./vendor/dropboxuploader/dropbox_uploader.sh -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
-	
-	[[ $DEBUG != 0 ]] && echo "] upload to dropbox: $LOCAL_PATH $REMOTE_PATH"
+	[[ $DEBUG != 0 ]] && echo "] upload to dropbox: $LOCAL_PATH $REMOTE_PATH"
 	
 	[[ $SKIP_UPLOAD == 1 ]] && return 0
 
@@ -167,7 +165,7 @@ backup_folder() {
 	
 	ensure_folder_exists "SOURCE_FOLDER" $SOURCE_FOLDER || return 1
 
-	[[ $DEBUG != 0 ]] && echo "] folder: $SOURCE_FOLDER"
+	[[ $DEBUG != 0 ]] && echo "] folder: $SOURCE_FOLDER"
 
 	local OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
 	
@@ -228,7 +226,7 @@ backup_database() {
 	local HOST=$4
 	local LOG=${LOG_FOLDER}/db_${DBNAME}.log
 	
-	[[ $DEBUG != 0 ]] && echo "] database: HOST=$HOST DB=$DBNAME USER=$USER"
+	[[ $DEBUG != 0 ]] && echo "] database: HOST=$HOST DB=$DBNAME USER=$USER"
 	
 	# has_mysql_error is only reliable if the old logfile is removed 
 	rm -f $LOG
@@ -284,6 +282,8 @@ CONFIG_FILE_DBS=${CONFIG_FILE_DBS:-dbs.conf}
 CONFIG_FILE_DROPBOX_UPLOADER=${CONFIG_FILE_DROPBOX_UPLOADER:-~/.dropbox_uploader)}
 NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
 TEST_MODE=${TEST_MODE:-false}
+DROPBOX_UPLOADER_SH=${DROPBOX_UPLOADER_SH:-./vendor/dropboxuploader/dropbox_uploader.sh}
+DROPBOX_UPLOADER="${DROPBOX_UPLOADER_SH} -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
 
 shift
 parse_arguments $@
