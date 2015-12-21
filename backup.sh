@@ -177,9 +177,7 @@ backup_folder() {
 	done
 	IFS=$BAK_IFS
 	
-	# TODO: exclude path's from tar
 	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
-	#tar c "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
 	
 	
 	upload "$OUTPUT_FILE_PATH"	
