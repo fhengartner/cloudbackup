@@ -71,7 +71,7 @@ testNotExcludePaths() {
 }
 
 testHasMysqlError() {
-	export TEST_MODE=true
+	export DO_RUN=false
 	source ../../backup.sh default.conf -t -q -d test5/dbs.conf -f test5/folders.conf
 	# undo settings from backup.sh (they interfer with shunit2)
 	set +o errexit
@@ -84,6 +84,24 @@ testHasMysqlError() {
 
 	echo "CONTENT" > $TMPFILE
 	assertTrue "has_mysql_error: expected true" "$?"
+}
+
+testCleanupLocal() {
+	# given
+	FILE1=$BACKUP_FOLDER/a_$(date -v-5d +"%Y-%m-%d")".tar.gz.gpg"
+	FILE2=$BACKUP_FOLDER/db1_$(date -v-5d +"%Y-%m-%d")".sql.gz.gpg"
+	
+	touch $FILE1 $FILE2
+	
+	# when
+	bash ../../backup.sh test7/backup.conf -q -d test7/dbs.conf -f test7/folders.conf
+	
+	# then
+	[[ -f $FILE1 ]]
+	assertFalse "failed to cleanup $FILE1" "$?"
+
+	[[ -f $FILE2 ]]
+	assertFalse "failed to cleanup $FILE2" "$?"
 }
 
 setUp() {

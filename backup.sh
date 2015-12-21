@@ -21,11 +21,33 @@ DEBUG=0
 # dont edit these
 DEPENDENCIES="gpg mysqldump basename"
 VERSION="0.3"
+
+##################
+# DATES
+# initialize all dates now to minimize risk of obtaining different dates (e.g. at midnight).
+##################
 NOW=$(date +"%Y-%m-%d")
+DAY_OF_WEEK=$(date "+%u")
+
+date_minus_days() {
+	DAYS=$1
+	
+	# abort if DAYS is not an integer
+	[[ "$DAYS" =~ ^-?[0-9]+$ ]] || return 1
+	
+	echo $(date -v-${DAYS}d +"%Y-%m-%d")
+	
+	return 0
+}
+
+MINUS_ONE_MONTH=$(date_minus_days 31)
+MINUS_ONE_YEAR=$(date_minus_days 365)
 
 ###################
 # UTILITIES
 ###################
+
+
 
 error() {
 	echo -e "ERROR: $*"
@@ -105,7 +127,7 @@ parse_arguments() {
 			n) SKIP_UPLOAD=1;;
 			d) CONFIG_FILE_DBS=$OPTARG;;
 			f) CONFIG_FILE_FOLDERS=$OPTARG;;
-			t) TEST_MODE=true;;
+			t) DO_RUN=false;;
 	        *)
 	            usage
 	            ;;
@@ -146,12 +168,14 @@ upload() {
 
 build_file_path() {
 	local NAME=$1
-	local EXTENSION=$2
+	local DATE=$2
+	local EXTENSION=$3
 	
 	[[ -z "$NAME" ]] && echo "ERROR: build_file_path(): no argument given." && return 1
+	[[ -z "$DATE" ]] && echo "ERROR: build_file_path(): parameter DATE is empty." && return 1
 	[[ -z "$EXTENSION" ]] && echo "ERROR: build_file_path(): parameter EXTENSION is empty." && return 1
 	
-	local OUTPUT_FILE=${NAME}_${NOW}.$EXTENSION
+	local OUTPUT_FILE=${NAME}_${DATE}.$EXTENSION
 	
 	echo ${BACKUP_FOLDER}$OUTPUT_FILE
 	
@@ -167,7 +191,8 @@ backup_folder() {
 
 	[[ $DEBUG != 0 ]] && echo "] folder: $SOURCE_FOLDER"
 
-	local OUTPUT_FILE_PATH=$(build_file_path ${NAME} "tar.gz.gpg")
+	local EXT="tar.gz.gpg"
+	local OUTPUT_FILE_PATH=$(build_file_path ${NAME} ${NOW} ${EXT})
 	
 	EXCLUDE_STRING=""
 	BAK_IFS=$IFS
@@ -179,8 +204,12 @@ backup_folder() {
 	
 	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
 	
-	
 	upload "$OUTPUT_FILE_PATH"	
+
+	cleanup_local ${NAME} $EXT
+	cleanup_remote ${NAME} $EXT
+
+	return 0
 }
 
 # backup folders listed in config-file
@@ -226,10 +255,11 @@ backup_database() {
 	
 	[[ $DEBUG != 0 ]] && echo "] database: HOST=$HOST DB=$DBNAME USER=$USER"
 	
+	local EXT="sql.gz.gpg"
+	local OUTPUT_FILE_PATH=$(build_file_path ${DBNAME} ${NOW} ${EXT})
+	
 	# has_mysql_error is only reliable if the old logfile is removed 
 	rm -f $LOG
-	
-	local OUTPUT_FILE_PATH=$(build_file_path ${DBNAME} "sql.gz.gpg")
 	
 	mysqldump -u $USER --password=$PW -h $HOST --log-error=$LOG $DBNAME | compress | encrypt > $OUTPUT_FILE_PATH
 	
@@ -237,8 +267,65 @@ backup_database() {
 
 	upload "$OUTPUT_FILE_PATH"
 	
+	cleanup_local ${DBNAME} $EXT
+	cleanup_remote ${DBNAME} $EXT
+	
 	return 0
 }
+
+cleanup_local() {
+	[[ $DO_CLEANUP_LOCAL != 0 ]] || return 0
+
+	local NAME=$1
+	local EXT=$2
+	
+	# TODO: use date initialized at begin of script
+	# TODO: echo warning
+	OLD_DATE=$(date_minus_days $CLEANUP_LOCAL_MAX_DAYS) #|| return 1
+	local LOCAL_PATH=$(build_file_path ${NAME} ${OLD_DATE} ${EXT})
+
+	# remove file
+	[[ -f $LOCAL_PATH ]] && rm $LOCAL_PATH
+
+	return 0
+}
+
+cleanup_remote() {
+	[[ $DO_CLEANUP_REMOTE != 0 ]] || return 0
+
+	local NAME=$1
+	local EXT=$2
+
+	###
+	# Remove files older than 1 month, except:
+	# if it is monday. (This retains 1 file every week.)
+	###
+	if [[ $DAY_OF_WEEK -ne 1 ]]; then
+		delete_remote_file $NAME $MINUS_ONE_MONTH $EXT
+	fi
+
+	###
+	# Remove files older than 1 year.
+	###
+	delete_remote_file $NAME $MINUS_ONE_YEAR $EXT
+	
+	return 0
+}
+
+delete_remote_file() {
+	local NAME=$1
+	local DATE_TO_DELETE=$2
+	local EXT=$3
+	
+	local LOCAL_PATH=$(build_file_path ${NAME} ${DATE_TO_DELETE} ${EXT})
+	local REMOTE_FILE=$(basename $LOCAL_PATH)
+	local REMOTE_PATH="/backup/$MINUS_ONE_YEAR/$REMOTE_FILE"
+	
+	$DROPBOX_UPLOADER delete $REMOTE_PATH
+	
+	return 0
+}
+
 
 # backup databases listed in config-file
 backup_databases() {
@@ -250,8 +337,17 @@ backup_databases() {
 		[[ -z $HOST ]]  && HOST=localhost
 
 		backup_database "$DBNAME" "$USER" "$PW" "$HOST"
+		
 		let ++i
 	done < ${CONFIG_FILE_DBS}
+}
+
+run() {
+	[[ $DO_VERIFY != 0 ]] && verify
+	[[ $DO_BACKUP_DATABASES != 0 ]] && backup_databases
+	[[ $DO_BACKUP_FOLDERS != 0 ]] && backup_folders
+	
+	return 0
 }
 
 ########################
@@ -279,17 +375,20 @@ CONFIG_FILE_FOLDERS=${CONFIG_FILE_FOLDERS:-folders.conf}
 CONFIG_FILE_DBS=${CONFIG_FILE_DBS:-dbs.conf}
 CONFIG_FILE_DROPBOX_UPLOADER=${CONFIG_FILE_DROPBOX_UPLOADER:-~/.dropbox_uploader)}
 NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
-TEST_MODE=${TEST_MODE:-false}
 DROPBOX_UPLOADER_SH=${DROPBOX_UPLOADER_SH:-./vendor/dropboxuploader/dropbox_uploader.sh}
 DROPBOX_UPLOADER="${DROPBOX_UPLOADER_SH} -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
+CLEANUP_LOCAL_MAX_DAYS=${CLEANUP_LOCAL_MAX_DAYS:-5}
+DO_RUN=${DO_RUN:-1}
+DO_VERIFY=${DO_VERIFY:-1}
+DO_BACKUP_DATABASES=${DO_BACKUP_DATABASES:-1}
+DO_BACKUP_FOLDERS=${DO_BACKUP_FOLDERS:-1}
+DO_CLEANUP_LOCAL=${DO_CLEANUP_LOCAL:-0}
+DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
+
 
 shift
 parse_arguments $@
 
-if [[ $TEST_MODE ]]; then
-	verify
-	backup_databases
-	backup_folders
-fi
+[[ $DO_RUN != 0 ]] && run
 
-# TODO: cleanup old files
+true
