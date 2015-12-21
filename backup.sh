@@ -123,7 +123,7 @@ compress() {
 }
 
 encrypt() {
-	gpg --batch --no-use-agent --no-tty --trust-model always \
+	gpg --batch --no-tty --trust-model always \
 		--symmetric --passphrase-file $ENCRYPT_PASSPHRASE_FILE
 }
 
