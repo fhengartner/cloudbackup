@@ -70,6 +70,22 @@ testNotExcludePaths() {
 	assertTrue "folders should not have been excluded from archive" "$?"
 }
 
+testHasMysqlError() {
+	export TEST_MODE=true
+	source ../../backup.sh default.conf -t -q -d test5/dbs.conf -f test5/folders.conf
+	# undo settings from backup.sh (they interfer with shunit2)
+	set +o errexit
+	set +o pipefail
+	set +o noglob
+	
+	TMPFILE=$(mktemp)
+	has_mysql_error $TMPFILE
+	assertFalse "has_mysql_error: expected false" "$?"
+
+	echo "CONTENT" > $TMPFILE
+	assertTrue "has_mysql_error: expected true" "$?"
+}
+
 setUp() {
 	cleanup
 }

@@ -98,13 +98,14 @@ usage() {
 }
 
 parse_arguments() {
-	while getopts ":qvnd:f:" o; do
+	while getopts ":qvnd:f:t" o; do
 	    case "${o}" in
 	        q) DEBUG=0;;
 	        v) DEBUG=1;;
 			n) SKIP_UPLOAD=1;;
 			d) CONFIG_FILE_DBS=$OPTARG;;
 			f) CONFIG_FILE_FOLDERS=$OPTARG;;
+			t) TEST_MODE=true;;
 	        *)
 	            usage
 	            ;;
@@ -216,7 +217,7 @@ send_notification() {
 
 has_mysql_error() {
 	# -s => true if file is not empty
-	[[ -f "$*" ]] && [[ ! -s "$*" ]]	
+	[[ -f "$*" ]] && [[ -s "$*" ]]	
 }
 
 # backup mysql database
@@ -282,13 +283,15 @@ CONFIG_FILE_FOLDERS=${CONFIG_FILE_FOLDERS:-folders.conf}
 CONFIG_FILE_DBS=${CONFIG_FILE_DBS:-dbs.conf}
 CONFIG_FILE_DROPBOX_UPLOADER=${CONFIG_FILE_DROPBOX_UPLOADER:-~/.dropbox_uploader)}
 NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
+TEST_MODE=${TEST_MODE:-false}
 
 shift
 parse_arguments $@
 
-verify
-
-backup_databases
-backup_folders
+if [[ $TEST_MODE ]]; then
+	verify
+	backup_databases
+	backup_folders
+fi
 
 # TODO: cleanup old files
