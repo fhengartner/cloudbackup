@@ -26,7 +26,7 @@ testBackupDB() {
 
 testDatabasesCount() {
 	# given
-	EXPECTED="$(grep -v '^#' dbs.conf | wc -l)"
+	EXPECTED="$(grep -v '^#' test2/dbs.conf | wc -l)"
 
 	# when
 	bash ../../backup.sh default.conf -q -d test2/dbs.conf -f test2/folders.conf
@@ -39,7 +39,7 @@ testDatabasesCount() {
 
 testFoldersCount() {
 	# given
-	EXPECTED="$(grep -v '^#' folders.conf | wc -l)"
+	EXPECTED="$(grep -v '^#' test3/folders.conf | wc -l)"
 
 	# when
 	bash ../../backup.sh default.conf -q -d test3/dbs.conf -f test3/folders.conf
