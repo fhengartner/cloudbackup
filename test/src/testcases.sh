@@ -1,10 +1,16 @@
 #!/bin/bash
-############
+
+source test1/backup.conf
+
 # fail on undefined variables
 set -o nounset
-############
+# allow globbing
+set +o noglob
 
-source default.conf
+
+backup_sh() {
+	bash ../../backup.sh $1/backup.conf -q -d test/src/$1/dbs.conf -f test/src/$1/folders.conf
+}
 
 cleanup() {
 	# do in subshell because of 'cd'
@@ -16,12 +22,12 @@ testBackupDB() {
 	EXPECTED="I AM THE DUMP: -u myuser1 --password=mypw1 -h myhost1 --log-error=/tmp/backup//log//db_db1.log db1"
 
 	# when
-	bash ../../backup.sh default.conf -q -d test1/dbs.conf -f test1/folders.conf
+	backup_sh test1
 
 	# then
-	ACTUAL=$(cat $BACKUP_FOLDER/db1*gpg)
-	
-	assertEquals "database dump is wrong or failed" "$EXPECTED" "$ACTUAL"
+	ACTUAL=$(cat $BACKUP_FOLDER/db1*gpg 2>/dev/null)
+
+	assertEquals "database dump is wrong or failed." "$EXPECTED" "$ACTUAL"
 }
 
 testDatabasesCount() {
@@ -29,12 +35,12 @@ testDatabasesCount() {
 	EXPECTED="$(grep -v '^#' test2/dbs.conf | wc -l)"
 
 	# when
-	bash ../../backup.sh default.conf -q -d test2/dbs.conf -f test2/folders.conf
+	backup_sh test2
 
 	# then
-	ACTUAL=$(ls -l $BACKUP_FOLDER/db*gpg | wc -l)
+	ACTUAL=$(ls -l $BACKUP_FOLDER/db*gpg 2>/dev/null | wc -l)
 	
-	assertEquals "number of dumps is wrong" "$EXPECTED" "$ACTUAL"
+	assertEquals "number of dumps is wrong." "$EXPECTED" "$ACTUAL"
 }
 
 testFoldersCount() {
@@ -42,37 +48,38 @@ testFoldersCount() {
 	EXPECTED="$(grep -v '^#' test3/folders.conf | wc -l)"
 
 	# when
-	bash ../../backup.sh default.conf -q -d test3/dbs.conf -f test3/folders.conf
+	backup_sh test3
 
 	# then
-	ACTUAL=$(ls -l $BACKUP_FOLDER/*tar.gz.gpg | wc -l)
+	ACTUAL=$(ls -l $BACKUP_FOLDER/*tar.gz.gpg 2>/dev/null | wc -l)
 	
-	assertEquals "number of folders is wrong" "$EXPECTED" "$ACTUAL"
+	assertEquals "number of folders is wrong." "$EXPECTED" "$ACTUAL"
 }
 
 testExcludePaths() {
 	# when
-	bash ../../backup.sh default.conf -q -d test4/dbs.conf -f test4/folders.conf
+	backup_sh test4
 
 	# then
-	tar tvf $BACKUP_FOLDER/a*gpg | grep -e 'protected' -e 'runtime' -e 'session' > /dev/null
+	tar tvf $BACKUP_FOLDER/a*gpg 2> /dev/null | grep -e 'protected' -e 'runtime' -e 'session' > /dev/null
 
-	assertFalse "folders should have been excluded from archive" "$?"
+	assertFalse "folders should have been excluded from archive." "$?"
 }
 
 testNotExcludePaths() {
 	# when
-	bash ../../backup.sh default.conf -q -d test5/dbs.conf -f test5/folders.conf
+	backup_sh test5
 
 	# then
-	tar tvf $BACKUP_FOLDER/b*gpg | grep -e 'protected' -e 'runtime' -e 'session' > /dev/null
+	tar tvf $BACKUP_FOLDER/b*gpg 2> /dev/null | grep -e 'protected' -e 'runtime' -e 'session' > /dev/null
 
-	assertTrue "folders should not have been excluded from archive" "$?"
+	assertTrue "folders should not have been excluded from archive." "$?"
 }
 
 testHasMysqlError() {
 	export DO_RUN=false
-	source ../../backup.sh default.conf -t -q -d test5/dbs.conf -f test5/folders.conf
+	local DIR=
+	source ../../backup.sh test6/backup.conf -q -d test/src/test6/dbs.conf -f test/src/test6/folders.conf
 	# undo settings from backup.sh (they interfer with shunit2)
 	set +o errexit
 	set +o pipefail
@@ -80,10 +87,10 @@ testHasMysqlError() {
 	
 	TMPFILE=$(mktemp)
 	has_mysql_error $TMPFILE
-	assertFalse "has_mysql_error: expected false" "$?"
+	assertFalse "has_mysql_error: expected false." "$?"
 
 	echo "CONTENT" > $TMPFILE
-	assertTrue "has_mysql_error: expected true" "$?"
+	assertTrue "has_mysql_error: expected true." "$?"
 }
 
 testCleanupLocal() {
@@ -94,7 +101,7 @@ testCleanupLocal() {
 	touch $FILE1 $FILE2
 	
 	# when
-	bash ../../backup.sh test7/backup.conf -q -d test7/dbs.conf -f test7/folders.conf
+	backup_sh test7
 	
 	# then
 	[[ -f $FILE1 ]]
@@ -105,7 +112,9 @@ testCleanupLocal() {
 }
 
 setUp() {
+	echo ""
 	cleanup
+	#echo -en "\nTest: "
 }
 
 # load shunit2

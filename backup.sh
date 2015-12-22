@@ -17,8 +17,8 @@ set -o noglob
 DEBUG=0
 
 # dont edit these
-DEPENDENCIES="gpg mysqldump basename"
-VERSION="0.3"
+DEPENDENCIES="gpg mysqldump basename dirname"
+VERSION="0.4"
 
 ##################
 # DATES
@@ -45,7 +45,6 @@ MINUS_ONE_YEAR=$(date_minus_days 365)
 ###################
 # UTILITIES
 ###################
-
 
 
 error() {
@@ -119,14 +118,13 @@ usage() {
 }
 
 parse_arguments() {
-	while getopts ":qvnd:f:t" o; do
+	while getopts ":qvnd:f:" o; do
 	    case "${o}" in
 	        q) DEBUG=0;;
 	        v) DEBUG=1;;
 			n) SKIP_UPLOAD=1;;
 			d) CONFIG_FILE_DBS=$OPTARG;;
 			f) CONFIG_FILE_FOLDERS=$OPTARG;;
-			t) DO_RUN=false;;
 	        *)
 	            usage
 	            ;;
@@ -384,9 +382,12 @@ DO_BACKUP_FOLDERS=${DO_BACKUP_FOLDERS:-1}
 DO_CLEANUP_LOCAL=${DO_CLEANUP_LOCAL:-0}
 DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
 
-
 shift
 parse_arguments $@
+
+# change to script folder.
+# thus the paths in the config-file are always relative to this script.
+cd $(dirname $0)
 
 [[ $DO_RUN != 0 ]] && run
 
