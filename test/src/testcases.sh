@@ -9,7 +9,7 @@ set +o noglob
 
 
 backup_sh() {
-	bash ../../backup.sh $1/backup.conf -q -d test/src/$1/dbs.conf -f test/src/$1/folders.conf
+	bash ../../backup.sh $1/backup.conf -q
 }
 
 cleanup() {
@@ -77,20 +77,23 @@ testNotExcludePaths() {
 }
 
 testHasMysqlError() {
-	export DO_RUN=false
-	local DIR=
-	source ../../backup.sh test6/backup.conf -q -d test/src/test6/dbs.conf -f test/src/test6/folders.conf
-	# undo settings from backup.sh (they interfer with shunit2)
-	set +o errexit
-	set +o pipefail
-	set +o noglob
+	# run in subshell to contain side-effects of sourcing backup.sh.
+	(
+		export DO_RUN=false
+		local DIR=
+		source ../../backup.sh test6/backup.conf -q
+		# undo settings from backup.sh (they interfer with shunit2)
+		set +o errexit
+		set +o pipefail
+		set +o noglob
 	
-	TMPFILE=$(mktemp)
-	has_mysql_error $TMPFILE
-	assertFalse "has_mysql_error: expected false." "$?"
+		TMPFILE=$(mktemp)
+		has_mysql_error $TMPFILE
+		assertFalse "has_mysql_error: expected false." "$?"
 
-	echo "CONTENT" > $TMPFILE
-	assertTrue "has_mysql_error: expected true." "$?"
+		echo "CONTENT" > $TMPFILE
+		assertTrue "has_mysql_error: expected true." "$?"
+	)
 }
 
 testCleanupLocal() {

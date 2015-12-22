@@ -363,6 +363,10 @@ fi
 
 source $CONFIGFILE
 
+# change to configfile folder.
+# makes all paths relative to configfile.
+cd $(dirname $CONFIGFILE)
+
 # config values
 SKIP_UPLOAD=${SKIP_UPLOAD:-0}
 BACKUP_FOLDER=${BACKUP_FOLDER:-/tmp/backup/}
@@ -385,9 +389,7 @@ DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
 shift
 parse_arguments $@
 
-# change to script folder.
-# thus the paths in the config-file are always relative to this script.
-cd $(dirname $0)
+
 
 [[ $DO_RUN != 0 ]] && run
 
