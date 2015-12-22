@@ -1,9 +1,14 @@
 #!/bin/bash
+########################################################################
 #
 # Dropbox Uploader
 #
 # Copyright (C) 2015 Florian Hengartner <fhengartner@gmail.com>
 #
+# Features:
+# - compress & encrypt folders and mysql database dumps
+# - upload backupfiles to dropbox
+# - remove old local & remote files
 ########################################################################
 
 # fail on undefined variables
@@ -101,6 +106,8 @@ verify() {
 	ensure_file_exists "CONFIG_FILE_FOLDERS" "$CONFIG_FILE_FOLDERS"
 
 	ensure_file_exists "CONFIG_FILE_DBS" "$CONFIG_FILE_DBS"
+	
+	ensure_file_exists "DROPBOX_UPLOADER_SH" "$DROPBOX_UPLOADER_SH"
 }
 
 usage() { 
@@ -389,8 +396,6 @@ DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
 shift
 parse_arguments $@
 
-
-
 [[ $DO_RUN != 0 ]] && run
 
-true
+# THE END
