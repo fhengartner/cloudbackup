@@ -1,6 +1,9 @@
 # cloudbackup
 Backup files and database dumps to dropbox
 
+## Setup
+
+Look at the `example` folder.
 
 ## Extract backup file
 
