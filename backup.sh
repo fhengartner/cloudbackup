@@ -9,8 +9,6 @@
 # fail on undefined variables
 set -o nounset
 # exit the script if any statement returns a non-true return value
-set -o errexit
-# fail on pipe error
 set -o pipefail
 # disable globbing
 set -o noglob
@@ -24,7 +22,8 @@ VERSION="0.3"
 
 ##################
 # DATES
-# initialize all dates now to minimize risk of obtaining different dates (e.g. at midnight).
+# initialize all dates now to minimize risk of
+# obtaining different dates (e.g. at midnight).
 ##################
 NOW=$(date +"%Y-%m-%d")
 DAY_OF_WEEK=$(date "+%u")
