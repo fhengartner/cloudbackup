@@ -222,7 +222,7 @@ backup_folders() {
 		[[ $DIR == \#* ]] && continue # ignore comment line
 		[[ -z $DIR ]]  && continue # skip empty lines
 		[[ -z $NAME ]]  && NAME=$(basename $DIR)
-		[[ -z $NAME ]]  && continue # TODO log error
+		[[ -z $NAME ]]  && echo "] WARN: unable to calculate NAME from '$DIR', skip line" && continue
 	
 		backup_folder "$DIR" "$NAME" "$EXCLUDEPATH"
 		
