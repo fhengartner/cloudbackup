@@ -206,7 +206,7 @@ backup_folder() {
 	done
 	IFS=$BAK_IFS
 	
-	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH"
+	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" 2>/dev/null | compress | encrypt  > "$OUTPUT_FILE_PATH"
 	
 	upload "$OUTPUT_FILE_PATH"	
 
