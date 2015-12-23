@@ -289,7 +289,12 @@ cleanup_local() {
 	local LOCAL_PATH=$(build_file_path ${NAME} ${OLD_DATE} ${EXT})
 
 	# remove file
-	[[ -f $LOCAL_PATH ]] && rm $LOCAL_PATH
+	if [[ -f $LOCAL_PATH ]]; then
+		[[ $DEBUG != 0 ]] && echo "] cleanup local: $LOCAL_PATH"
+		rm $LOCAL_PATH
+	else
+		[[ $DEBUG != 0 ]] && echo "] cleanup local, nothing done, file does not exist: $LOCAL_PATH"
+	fi
 
 	return 0
 }
@@ -306,6 +311,8 @@ cleanup_remote() {
 	###
 	if [[ $DAY_OF_WEEK -ne 1 ]]; then
 		delete_remote_file $NAME $MINUS_ONE_MONTH $EXT
+	else
+		[[ $DEBUG != 0 ]] && echo "] cleanup remote: no deletion of backup one week ago!"
 	fi
 
 	###
@@ -324,6 +331,8 @@ delete_remote_file() {
 	local LOCAL_PATH=$(build_file_path ${NAME} ${DATE_TO_DELETE} ${EXT})
 	local REMOTE_FILE=$(basename $LOCAL_PATH)
 	local REMOTE_PATH="/backup/$MINUS_ONE_YEAR/$REMOTE_FILE"
+	
+	[[ $DEBUG != 0 ]] && echo "] cleanup remote $REMOTE_PATH"
 	
 	$DROPBOX_UPLOADER delete $REMOTE_PATH
 	
