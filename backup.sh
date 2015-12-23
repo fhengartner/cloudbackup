@@ -14,6 +14,8 @@
 # fail on undefined variables
 set -o nounset
 # exit the script if any statement returns a non-true return value
+set -o errexit
+# fail on pipe error
 set -o pipefail
 # disable globbing
 set -o noglob
@@ -23,7 +25,7 @@ DEBUG=0
 
 # dont edit these
 DEPENDENCIES="gpg mysqldump basename dirname"
-VERSION="0.4"
+VERSION="0.5"
 
 ##################
 # DATES
@@ -331,7 +333,7 @@ delete_remote_file() {
 	
 	[[ $DEBUG != 0 ]] && echo "] cleanup remote $REMOTE_PATH"
 	
-	$DROPBOX_UPLOADER delete $REMOTE_PATH
+	$DROPBOX_UPLOADER delete $REMOTE_PATH || true #ignore error, delete fails if file does not yet exist
 	
 	return 0
 }
