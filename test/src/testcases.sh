@@ -114,6 +114,15 @@ testCleanupLocal() {
 	assertFalse "failed to cleanup $FILE2" "$?"
 }
 
+
+testVerifyCleanupLocalMaxDays() {
+	# when
+	OUTPUT=$(backup_sh test8)
+	
+	# then
+	assertEquals "ERROR: failed to set CLEANUP_LOCAL_MAX_DAYS_DATE: CLEANUP_LOCAL_MAX_DAYS=FAIL" "$OUTPUT"
+}
+
 setUp() {
 	echo ""
 	cleanup

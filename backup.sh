@@ -283,10 +283,7 @@ cleanup_local() {
 	local NAME=$1
 	local EXT=$2
 	
-	# TODO: use date initialized at begin of script
-	# TODO: echo warning
-	OLD_DATE=$(date_minus_days $CLEANUP_LOCAL_MAX_DAYS) #|| return 1
-	local LOCAL_PATH=$(build_file_path ${NAME} ${OLD_DATE} ${EXT})
+	local LOCAL_PATH=$(build_file_path ${NAME} ${CLEANUP_LOCAL_MAX_DAYS_DATE} ${EXT})
 
 	# remove file
 	if [[ -f $LOCAL_PATH ]]; then
@@ -395,13 +392,16 @@ NOTIFICATION_EMAIL_ADDRESS=${NOTIFICATION_EMAIL_ADDRESS:-}
 DROPBOX_UPLOADER_SH=${DROPBOX_UPLOADER_SH:-./vendor/dropboxuploader/dropbox_uploader.sh}
 DROPBOX_UPLOADER="${DROPBOX_UPLOADER_SH} -q -f $CONFIG_FILE_DROPBOX_UPLOADER "
 CLEANUP_LOCAL_MAX_DAYS=${CLEANUP_LOCAL_MAX_DAYS:-5}
+CLEANUP_LOCAL_MAX_DAYS_DATE=$(date_minus_days $CLEANUP_LOCAL_MAX_DAYS) || error "failed to set CLEANUP_LOCAL_MAX_DAYS_DATE: CLEANUP_LOCAL_MAX_DAYS=$CLEANUP_LOCAL_MAX_DAYS"
 DO_RUN=${DO_RUN:-1}
 DO_VERIFY=${DO_VERIFY:-1}
 DO_BACKUP_DATABASES=${DO_BACKUP_DATABASES:-1}
 DO_BACKUP_FOLDERS=${DO_BACKUP_FOLDERS:-1}
 DO_CLEANUP_LOCAL=${DO_CLEANUP_LOCAL:-0}
 DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
+# end config values
 
+# remove config-file path from arguments list
 shift
 parse_arguments $@
 
