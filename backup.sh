@@ -27,32 +27,28 @@ DEBUG=0
 DEPENDENCIES="gpg mysqldump basename dirname"
 VERSION="0.5"
 
-##################
-# DATES
-# initialize all dates now to minimize risk of
-# obtaining different dates (e.g. at midnight).
-##################
-NOW=$(date +"%Y-%m-%d")
-DAY_OF_WEEK=$(date "+%u")
-
-date_minus_days() {
-	DAYS=$1
-	
-	# abort if DAYS is not an integer
-	[[ "$DAYS" =~ ^-?[0-9]+$ ]] || return 1
-	
-	echo $(date -v-${DAYS}d +"%Y-%m-%d")
-	
-	return 0
-}
-
-MINUS_ONE_MONTH=$(date_minus_days 31)
-MINUS_ONE_YEAR=$(date_minus_days 365)
-
 ###################
 # UTILITIES
 ###################
 
+date_minus_days() {
+	local DAYS=$1
+	
+	# abort if DAYS is not an integer
+	[[ "$DAYS" =~ ^-?[0-9]+$ ]] || return 1
+	
+	if [ "${OSTYPE:0:6}" = "darwin" ]; then
+		date -v-${DAYS}d +"%Y-%m-%d" || return 1
+	elif [ "${OSTYPE:0:7}" = "freebsd" ]; then
+		date -v-${DAYS}d +"%Y-%m-%d" || return 1
+	elif [ "${OSTYPE:0:5}" = "linux" ]; then
+		date +"%Y-%m-%d" -d "-${DAYS} day ago" || return 1
+	else
+		error "date_minus_days() not implemented for $OSTYPE"
+	fi
+	
+	return 0
+}
 
 error() {
 	echo -e "ERROR: $*"
@@ -362,6 +358,16 @@ run() {
 	return 0
 }
 
+##################
+# DATES
+# initialize all dates now to minimize risk of
+# obtaining different dates (e.g. at midnight).
+##################
+NOW=$(date +"%Y-%m-%d")
+DAY_OF_WEEK=$(date "+%u")
+MINUS_ONE_MONTH=$(date_minus_days 31) || error "Failed to set MINUS_ONE_MONTH"
+MINUS_ONE_YEAR=$(date_minus_days 365) || error "Failed to set MINUS_ONE_YEAR"
+
 ########################
 # MAIN
 ########################
@@ -402,6 +408,7 @@ DO_BACKUP_FOLDERS=${DO_BACKUP_FOLDERS:-1}
 DO_CLEANUP_LOCAL=${DO_CLEANUP_LOCAL:-0}
 DO_CLEANUP_REMOTE=${DO_CLEANUP_REMOTE:-0}
 # end config values
+
 
 # remove config-file path from arguments list
 shift
