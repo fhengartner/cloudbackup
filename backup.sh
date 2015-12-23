@@ -228,21 +228,6 @@ backup_folders() {
 	done < ${CONFIG_FILE_FOLDERS}
 }
 
-# send email for mysqldump error
-send_notification() {
-	local DBNAME=$1
-	local LOG=$2
-	
-	if [[ -z $NOTIFICATION_EMAIL_ADDRESS ]]; then
-		[[ $DEBUG != 0 ]] && echo "WARN: NOTIFICATION_EMAIL_ADDRESS is not set. no email sent."
-		return 0
-	fi
-	
-	[[ ! -f "$LOG" ]] && echo "WARN: logfile $LOG does not exist. no email sent" && return 0
-	
-	cat "$LOG" | mailx -s "Backup-Error: Database $DBNAME" "$NOTIFICATION_EMAIL_ADDRESS"
-}
-
 has_mysql_error() {
 	# -s => true if file is not empty
 	[[ -f "$*" ]] && [[ -s "$*" ]]	
