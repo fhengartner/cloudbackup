@@ -26,6 +26,7 @@ DEBUG=0
 # dont edit these
 DEPENDENCIES="gpg mysqldump basename dirname"
 VERSION="0.5"
+EXITSTATUS=0
 
 ###################
 # UTILITIES
@@ -165,7 +166,7 @@ upload() {
 	
 	[[ $SKIP_UPLOAD == 1 ]] && return 0
 
-	$DROPBOX_UPLOADER upload $LOCAL_PATH $REMOTE_PATH
+	$DROPBOX_UPLOADER upload $LOCAL_PATH $REMOTE_PATH || { echo "] WARN: unable to upload ${LOCAL_PATH} to ${REMOTE_PATH}"; return 1; }
 }
 
 build_file_path() {
@@ -204,12 +205,12 @@ backup_folder() {
 	done
 	IFS=$BAK_IFS
 	
-	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" 2>/dev/null | compress | encrypt  > "$OUTPUT_FILE_PATH"
+	tar -cf - $EXCLUDE_STRING "$SOURCE_FOLDER" | compress | encrypt  > "$OUTPUT_FILE_PATH" || { echo "] WARN: unable to compress/encrypt ${DIR}"; return 1; }
 	
-	upload "$OUTPUT_FILE_PATH"	
+	upload "$OUTPUT_FILE_PATH" || return 1
 
-	cleanup_local ${NAME} $EXT
-	cleanup_remote ${NAME} $EXT
+	cleanup_local ${NAME} $EXT || return 1
+	cleanup_remote ${NAME} $EXT || return 1
 
 	return 0
 }
@@ -222,7 +223,7 @@ backup_folders() {
 		[[ -z $NAME ]]  && NAME=$(basename $DIR)
 		[[ -z $NAME ]]  && echo "] WARN: unable to calculate NAME from '$DIR', skip line" && continue
 	
-		backup_folder "$DIR" "$NAME" "$EXCLUDEPATH"
+		backup_folder "$DIR" "$NAME" "$EXCLUDEPATH" || { echo "] WARN: failed to backup ${DIR}"; EXITSTATUS=1; }
 		
 	done < ${CONFIG_FILE_FOLDERS}
 }
@@ -263,14 +264,18 @@ backup_database() {
 	# has_mysql_error is only reliable if the old logfile is removed 
 	rm -f $LOG
 	
-	mysqldump -u $USER --password=$PW -h $HOST --log-error=$LOG $DBNAME | compress | encrypt > $OUTPUT_FILE_PATH
+	mysqldump -u $USER --password=$PW -h $HOST --log-error=$LOG $DBNAME | compress | encrypt > $OUTPUT_FILE_PATH || { echo "] WARN: failed to backup ${DBNAME}"; return 1; }
 	
-	has_mysql_error $LOG && send_notification $DBNAME $LOG
+	if [[ `has_mysql_error $LOG` ]]; then
+		echo "] WARN: mysql error detected! $DBNAME"
+		cat $LOG
+		return 1
+	fi
 
-	upload "$OUTPUT_FILE_PATH"
+	upload "$OUTPUT_FILE_PATH" || return 1
 	
-	cleanup_local ${DBNAME} $EXT
-	cleanup_remote ${DBNAME} $EXT
+	cleanup_local ${DBNAME} $EXT || return 1
+	cleanup_remote ${DBNAME} $EXT || return 1
 	
 	return 0
 }
@@ -344,7 +349,7 @@ backup_databases() {
 		[[ -z $USER ]]  && echo -e "WARN: user is empty! ignoring line ${i} of $CONFIG_FILE_DBS" && continue
 		[[ -z $HOST ]]  && HOST=localhost
 
-		backup_database "$DBNAME" "$USER" "$PW" "$HOST"
+		backup_database "$DBNAME" "$USER" "$PW" "$HOST" || { echo "] WARN: failed to backup ${DBNAME}"; EXITSTATUS=1; }
 		
 		let ++i
 	done < ${CONFIG_FILE_DBS}
@@ -416,4 +421,5 @@ parse_arguments $@
 
 [[ $DO_RUN != 0 ]] && run
 
+exit $EXITSTATUS
 # THE END

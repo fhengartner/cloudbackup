@@ -123,6 +123,21 @@ testVerifyCleanupLocalMaxDays() {
 	assertEquals "ERROR: failed to set CLEANUP_LOCAL_MAX_DAYS_DATE: CLEANUP_LOCAL_MAX_DAYS=FAIL" "$OUTPUT"
 }
 
+# TARing the 1st folder fails -> expect exists status = 1
+# TARing the 2nd folder succeeds -> backup file should have been created.
+testTarError() {
+	# when
+	backup_sh test9 >/dev/null
+	
+	# then
+	assertEquals "should have exit status=1" "1" "$?"
+
+	ACTUAL=$(ls -l $BACKUP_FOLDER/*tar.gz.gpg 2>/dev/null | wc -l)
+	
+	assertEquals "existing folder should have been backedup!" 1 $ACTUAL
+}
+
+
 setUp() {
 	echo ""
 	cleanup
